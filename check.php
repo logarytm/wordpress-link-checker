@@ -68,6 +68,34 @@ function check_status($url)
 }
 
 /**
+ * Translation table for supported languages.
+ * @var array
+ */
+$translations = array(
+	'pl' => array(
+		'Database configuration' => 'Ustaw bazę danych',
+		'DB name' => 'Nazwa bazy danych',
+		'Server' => 'Serwer',
+		'usually' => 'zwykle',
+		'Username' => 'Nazwa użytkownika',
+		'Password' => 'Hasło',
+		'We couldn\'t find information about your blog database. Please enter missing data into the form below.' => 'Nie możemy znaleźć konfiguracji Twojej bazy danych. Wpisz odpowiednie dane do formularza poniżej.',
+		'Table prefix' => 'Prefiks',
+		'Next' => 'Dalej',
+		
+		'Request failed: ' => 'Błąd: ',
+		'(redirected to %s)' => '(przekierowanie do ',
+		'No page under this URL.' => 'Nie znaleziono strony',
+		'The page probably exists, but we don\'t have permission to see it.' => 'Strona istnieje, ale nie mamy do niej uprawnień',
+		'Unknown status.' => 'Nieznany stan',
+		'Server error %i' => 'Błąd serwera %i',
+		'Client error %i' => 'Błąd %i',
+		
+	),
+	'en' => array(),
+);
+
+/**
  * Describes status for a single link. Stores the title (if the page could be retrieved),
  * the status code and the URL itself.
  * If the page did redirect us somewhere else, the the actual_url property is also stored
@@ -92,25 +120,23 @@ class LinkStatus
 	 */
 	public function describe()
 	{
-		$desc = '';
-		
 		switch ($this->code) {
 			case 0:
-				return 'Request failed: ' . $this->error;
+				return trans('Request failed: ') . $this->error;
 			case 200:
-				return 'OK' . ($this->title ? ' (' . $this->title . ')' : '') . (($this->actual_url != $this->url) ? ' (redirected to ' . $this->actual_url . ')' : '');
+				return trans('OK') . ($this->title ? ' (' . $this->title . ')' : '') . (($this->actual_url != $this->url) ? trans(' (redirected to %s)', $this->actual_url) : '');
 			case 404:
-				return 'No page under this URL.';
+				return trans('No page under this URL.');
 			case 403:
-				return 'The page probably exists, but we don\'t have permission to see it.';
+				return trans('The page probably exists, but we don\'t have permission to see it.');
 			default:
-				return 'Unknown status.';
+				return trans('Unknown status.');
 		}
 		
 		if ($this->code >= 500) {
-			return 'Oops, server problem!';
+			return trans('Server error %i', $this->code);
 		} elseif ($this->code >= 400) {
-			return 'Client error.';
+			return trans('Client error %i', $this->code);
 		}
 	}
 	
@@ -246,8 +272,9 @@ dd {
 input[type=text], input[type=password] {
 	padding: 6px;
 	width: 175px;
+	box-shadow: 1px 1px 1px #eee inset;
 	font-size: .9em;
-	border: 1px #d5d5d5 solid;
+	border: 1px #d7d7d7 solid;
 	border-radius: 2px;
     -moz-border-radius: 2px;
     -webkit-border-radius: 2px;
@@ -279,6 +306,74 @@ input[type=submit]:focus {
 }
 ';
 
+/**
+ * Detects the client language.
+ * Stolen from somewhere on the Internet.
+ * @param string sDefault default language name
+ * @param array languages
+ * @return string
+ */
+function get_language($sDefault = 'en', $ihSystemLang)
+{
+	$sLangs = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
+	preg_match_all(
+	'!([a-zA-Z]+)(?:-[a-zA-Z]+)?(?: *; *q *= *([01]\.[0-9]+))?!',
+	$sLangs, $shFound);
+
+	foreach ($shFound[1] as $i => $sLang) {
+		$iW = (float)$shFound[2][$i];
+		$ihUserLang[$sLang] = $iW > 0 ? $iW : 1;
+	}
+	$iChoiceWeight = 0;
+	$sChoiceLang = '';
+	foreach ($ihSystemLang as $sLang => $iW) {
+		if (isset($ihUserLang[$sLang])) {
+			$iTmpChoice = $iW * $ihUserLang[$sLang];
+
+			if ($iTmpChoice > $iChoiceWeight and $iTmpChoice > 0) {
+				$iChoiceWeight = $iTmpChoice;
+				$sChoiceLang = $sLang;
+			}
+		}
+	}
+
+	return $sChoiceLang != '' ? $sChoiceLang : $sDefault;
+}
+
+/**
+ * Translates a phrase and sends to stdout.
+ * @param string $phrase
+ */
+function t($phrase)
+{
+	global $lang, $translations;
+	$args = func_get_args(); // [0] is $phrase
+	
+	if (isset($translations[$lang][$args[0]])) {
+		$args[0] = $translations[$lang][$args[0]];
+	}
+	
+	echo htmlspecialchars(call_user_func_array('sprintf', $args)); // Yep, bad hack :3
+}
+
+/**
+ * Translates a phrase and sends to stdout.
+ * @param string $phrase
+ */
+function trans($phrase)
+{
+	global $lang, $translations;
+	$args = func_get_args(); // [0] is $phrase
+	
+	if (isset($translations[$lang][$args[0]])) {
+		$args[0] = $translations[$lang][$args[0]];
+	}
+	
+	return call_user_func_array('sprintf', $args); // Yep, bad hack :3
+}
+
+$lang = get_language('en', array('en' => 1, 'pl' => 0.8));
+
 if (file_exists('wp-config.php')) {
 	require_once 'wp-config.php';
 	$wproot = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
@@ -298,26 +393,26 @@ if (file_exists('wp-config.php')) {
 ?>
 <!DOCTYPE html>
 <meta charset="UTF-8">
-<title>Baza danych – WordPress Link Checker</title>
+<title><?php t('Database configuration') ?> – WordPress Link Checker</title>
 <style><?php echo $stylesheet ?></style>
-<h1>Ustaw bazę danych</h1>
-<p>Nie mogliśmy znaleźć Twojej konfiguracji dla bazy danych. Proszę, wprowadź potrzebne informacje tutaj:</p>
+<h1><?php t('Database configuration') ?> – WordPress Link Checker</h1>
+<p><?php t('We couldn\'t find information about your blog database. Please enter missing data into the form below.') ?></p>
 <form method="POST">
 	<fieldset>
-		<legend>Informacje</legend>
+		<legend><?php t('') ?></legend>
 		<dl>
-			<dt><label for="host">Serwer: (zwykle: <code>localhost</code>)</label></dt>
-			<dd><input type="text" id="host" name="db_host"></dd>
-			<dt><label for="db">Nazwa bazy:</label></dt>
+			<dt><label for="host"><?php t('Server') ?>: (<?php t('usually') ?>: <code>localhost</code>)</label></dt>
+			<dd><input type="text" id="host" name="db_host" autofocus></dd>
+			<dt><label for="db"><?php t('DB name') ?>:</label></dt>
 			<dd><input type="text" id="db" name="db_name"></dd>
-			<dt><label for="user">Użytkownik:</label></dt>
+			<dt><label for="user"><?php t('Username') ?>:</label></dt>
 			<dd><input type="text" id="user" name="db_user"></dd>
-			<dt><label for="password">Hasło:</label></dt>
+			<dt><label for="password"><?php t('Password') ?>:</label></dt>
 			<dd><input type="password" id="password" name="db_password"></dd>
-			<dt><label for="prefix">Prefiks:</label></dt>
+			<dt><label for="prefix"><?php t('Table prefix') ?>:</label></dt>
 			<dd><input type="text" id="prefix" name="db_prefix" value="wp_"></dd>
 		</dl>
-		<input type="submit" value="Dalej »">
+		<input type="submit" value="<?php t('Next') ?> »">
 	</fieldset>
 </form>
 <?php

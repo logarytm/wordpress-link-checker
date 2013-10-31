@@ -373,7 +373,7 @@ function trans($phrase)
 }
 
 $lang = get_language('en', array('en' => 1, 'pl' => 0.8));
-set_time_limit(0);
+@set_time_limit(0);
 
 if (file_exists('wp-config.php')) {
 	require_once 'wp-config.php';
@@ -428,7 +428,7 @@ class Post
 }
 
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$query = $db->query('SELECT `post_content`, `post_title`, `ID`, `guid` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `id` DESC');
+$query = $db->query('SELECT `post_content`, `post_title`, `ID`, `guid` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `post_date` DESC');
 $posts = array();
 
 while ($row = $query->fetch(PDO::FETCH_OBJ)) {

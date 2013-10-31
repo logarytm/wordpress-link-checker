@@ -84,7 +84,7 @@ $translations = array(
 		'Next' => 'Dalej',
 		
 		'Request failed: ' => 'Błąd: ',
-		' (redirected to %s)' => '(przekierowanie do ',
+		' (redirected to %s)' => ' (przekierowanie do %s)',
 		'No page under this URL.' => 'Nie znaleziono strony',
 		'The page probably exists, but we don\'t have permission to see it.' => 'Strona istnieje, ale nie mamy do niej uprawnień',
 		'Unknown status.' => 'Nieznany stan',
@@ -377,7 +377,6 @@ set_time_limit(0);
 
 if (file_exists('wp-config.php')) {
 	require_once 'wp-config.php';
-	$wproot = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
 	$db = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME, DB_USER, DB_PASSWORD);
 	$prefix = $table_prefix;
 } elseif (
@@ -387,7 +386,6 @@ if (file_exists('wp-config.php')) {
 	isset($_POST['db_password']) &&
 	isset($_POST['db_prefix'])
 ) {
-	$wproot = '/';
 	$db = new PDO('mysql:host=' . $_POST['db_host'] . ';dbname=' . $_POST['db_name'], $_POST['db_user'], $_POST['db_password']);
 	$prefix = $_POST['db_prefix'];
 } else {
@@ -423,13 +421,14 @@ if (file_exists('wp-config.php')) {
 class Post
 {
 	public $content;
+	public $url;
 	public $title;
 	public $links;
 	public $id;
 }
 
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$query = $db->query('SELECT `post_content`, `post_title`, `ID` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\'');
+$query = $db->query('SELECT `post_content`, `post_title`, `ID`, `guid` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `id` DESC');
 $posts = array();
 
 while ($row = $query->fetch(PDO::FETCH_OBJ)) {
@@ -438,13 +437,12 @@ while ($row = $query->fetch(PDO::FETCH_OBJ)) {
 	if (count($links) > 0) {
 		$post = $posts[$row->ID] = new Post;
 		$post->title = $row->post_title;
+		$post->url = $row->guid;
 		$post->id = $row->ID;
 		$post->content = $row->post_content;
 		$post->links = $links;
 	}
 }
-
-krsort($posts);
 
 ?>
 <!DOCTYPE html>
@@ -453,7 +451,7 @@ krsort($posts);
 <style><?php echo $stylesheet ?></style>
 <h1>WordPress Link Checker</h1>
 <?php foreach ($posts as $post): ?>
-<h2>» <a href="<?php echo $wproot, '?p=', $post->id ?>"><?php echo htmlspecialchars($post->title) ?></a></h2>
+<h2>» <a href="<?php echo $post->url ?>"><?php echo htmlspecialchars($post->title) ?></a></h2>
 <ul>
 <?php foreach ($post->links as $link): ?>
 	<li><a href="<?php echo htmlspecialchars($link->url) ?>"><?php echo htmlspecialchars(str_replace(array('https://', 'http://'), '', $link->url)), '</a>: ', htmlspecialchars($link->describe()) ?></li>

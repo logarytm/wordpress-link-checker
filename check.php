@@ -209,6 +209,7 @@ if (file_exists('wp-config.php')) {
 	</fieldset>
 </form>
 <?php
+	exit;
 }
 
 class Post
@@ -229,6 +230,7 @@ while ($row = $query->fetch(PDO::FETCH_OBJ)) {
 	if (count($links) > 0) {
 		$post = $posts[$row->ID] = new Post;
 		$post->title = $row->post_title;
+		$post->id = $row->ID;
 		$post->content = $row->post_content;
 		$post->links = $links;
 	}

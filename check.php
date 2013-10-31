@@ -168,6 +168,117 @@ class LinkStatus
 	);
 }
 
+$stylesheet = 'html {
+    color: #666;
+    background: #f7f7f7;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: .9em;
+    margin: 1em 2em;
+    background: #fff;
+    padding: 15px 30px;
+    border-radius: 3px;
+    -moz-border-radius: 3px;
+    -webkit-border-radius: 3px;
+    -o-border-radius: 3px;
+    border: 1px #e0e0e0 solid;
+    box-shadow: 0 2px 1px #eee;
+}
+
+a {
+    color: #28c;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #048;
+    text-decoration: underline;
+}
+
+h1 {
+    border-bottom: 1px #eee solid;
+    line-height: 1.7;
+    font-size: 2em;
+    color: #777;
+}
+
+h1, h2 {
+    letter-spacing: -1px;
+}
+
+h2 {
+    color: #ccc;
+    margin-top: 1.2em;
+    margin-bottom: .5em;
+}
+
+h2 a {
+    color: #000;
+}
+
+h2 a:hover {
+    color: #27c;
+    text-decoration: none;
+}
+
+fieldset {
+	border: 1px #eee solid;
+	padding: 8px 14px;
+}
+
+legend {
+	color: #444;
+	font-size: .85em;
+	font-weight: bold;
+}
+
+label {
+	font-size: .9em;
+}
+
+dd {
+	padding-left: 2px;
+	margin: 2px 0 5px 0;
+}
+
+input[type=text], input[type=password] {
+	padding: 6px;
+	width: 175px;
+	font-size: .9em;
+	border: 1px #d5d5d5 solid;
+	border-radius: 2px;
+    -moz-border-radius: 2px;
+    -webkit-border-radius: 2px;
+    -o-border-radius: 2px;
+}
+
+input[type=submit] {
+	font-size: 1.3em;
+	font-family: Arial, Helvetica, sans-serif;
+	padding: 8px 12px;
+	background: #27a;
+	border: 0;
+	color: #fff;
+	border-radius: 3px;
+    -moz-border-radius: 3px;
+    -webkit-border-radius: 3px;
+    -o-border-radius: 3px;
+	text-shadow: 0 1px 1px #037;
+}
+
+input[type=submit]:hover {
+	background: #176c9c;
+	cursor: pointer;
+}
+
+input[type=submit]:focus {
+	background: #058;
+	cursor: pointer;
+}
+';
+
 if (file_exists('wp-config.php')) {
 	require_once 'wp-config.php';
 	$wproot = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
@@ -188,6 +299,7 @@ if (file_exists('wp-config.php')) {
 <!DOCTYPE html>
 <meta charset="UTF-8">
 <title>Baza danych – WordPress Link Checker</title>
+<style><?php echo $stylesheet ?></style>
 <h1>Ustaw bazę danych</h1>
 <p>Nie mogliśmy znaleźć Twojej konfiguracji dla bazy danych. Proszę, wprowadź potrzebne informacje tutaj:</p>
 <form method="POST">
@@ -242,6 +354,7 @@ krsort($posts);
 <!DOCTYPE html>
 <meta charset="UTF-8">
 <title>WordPress Link Checker</title>
+<style><?php echo $stylesheet ?></style>
 <h1>WordPress Link Checker</h1>
 <?php foreach ($posts as $post): ?>
 <h2>» <a href="<?php echo $wproot, '?p=', $post->id ?>"><?php echo htmlspecialchars($post->title) ?></a></h2>

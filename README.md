@@ -7,5 +7,4 @@ Download the `check.php` file and put it into the directory of your WordPress in
 It should detect your database configuration automagically, if not, then you will be prompted for missing data.
 
 ## TODO
-- A nicer theme.
-- Statistics (broken links).
+- URL statistics (broken links).

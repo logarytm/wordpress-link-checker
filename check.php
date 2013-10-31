@@ -373,6 +373,7 @@ function trans($phrase)
 }
 
 $lang = get_language('en', array('en' => 1, 'pl' => 0.8));
+set_time_limit(0);
 
 if (file_exists('wp-config.php')) {
 	require_once 'wp-config.php';

@@ -399,7 +399,7 @@ if (file_exists('wp-config.php')) {
 <p><?php t('We couldn\'t find information about your blog database. Please enter missing data into the form below.') ?></p>
 <form method="POST">
 	<fieldset>
-		<legend><?php t('') ?></legend>
+		<legend><?php t('Database configuration') ?></legend>
 		<dl>
 			<dt><label for="host"><?php t('Server') ?>: (<?php t('usually') ?>: <code>localhost</code>)</label></dt>
 			<dd><input type="text" id="host" name="db_host" autofocus></dd>

@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Finds URLs in a post body.
  * @param string $text Post body
@@ -41,9 +40,12 @@ function check_status($url)
 	$curl = curl_init();
 	curl_setopt_array($curl, array(
 		CURLOPT_URL            => $url,
-		CURLOPT_FOLLOWLOCATION => true,
 		CURLOPT_RETURNTRANSFER => true,
 	));
+	
+	if (!ini_get('open_basedir')) {
+		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+	}
 	
 	$ret = curl_exec($curl);
 	

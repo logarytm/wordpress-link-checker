@@ -84,7 +84,7 @@ $translations = array(
 		'Next' => 'Dalej',
 		
 		'Request failed: ' => 'Błąd: ',
-		'(redirected to %s)' => '(przekierowanie do ',
+		' (redirected to %s)' => '(przekierowanie do ',
 		'No page under this URL.' => 'Nie znaleziono strony',
 		'The page probably exists, but we don\'t have permission to see it.' => 'Strona istnieje, ale nie mamy do niej uprawnień',
 		'Unknown status.' => 'Nieznany stan',

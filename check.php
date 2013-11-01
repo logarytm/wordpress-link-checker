@@ -54,6 +54,7 @@ function check_status($url)
 	curl_setopt_array($curl, array(
 		CURLOPT_URL            => $url,
 		CURLOPT_RETURNTRANSFER => true,
+		CURLOPT_SSL_VERIFYPEER => false,
 	));
 	
 	if (!ini_get('open_basedir')) {

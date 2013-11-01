@@ -1,5 +1,15 @@
 <?php
 /**
+ * WordPress Link Checker
+ * 
+ * @package wordpress-link-checker
+ * @license http://wtfpl.net/about WTFPL
+ * @link    http://winek.tk
+ * @version 0.2
+ * @author  Olgierd „winek” Grzyb <hintpl@gmail.com>
+ */
+
+/**
  * Finds URLs in a post body.
  * @param string $text Post body
  * @return array multi-dimensional array of found URLs. Each item is another array, where the URL string is at 0 index.
@@ -28,7 +38,6 @@ function check_links($text)
 
 /**
  * Checks the status for a given link.
- * TODO: handle HTTP redirections
  * @param string $url
  * @return LinkStatus
  */
@@ -44,6 +53,7 @@ function check_status($url)
 	));
 	
 	if (!ini_get('open_basedir')) {
+		// cURL won't let us set this option if open_basedir is set
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
 	}
 	
@@ -52,6 +62,7 @@ function check_status($url)
 	if (!$ret) {
 		// Failed, returning status as is
 		$status->error = curl_error($curl);
+		$status->errno = curl_errno($curl);
 		return $status;
 	}
 	
@@ -83,13 +94,19 @@ $translations = array(
 		'Table prefix' => 'Prefiks',
 		'Next' => 'Dalej',
 		
-		'Request failed: ' => 'Błąd: ',
+		'Error: %s' => 'Błąd: %s',
 		' (redirected to %s)' => ' (przekierowanie do %s)',
 		'No page under this URL.' => 'Nie znaleziono strony',
 		'The page probably exists, but we don\'t have permission to see it.' => 'Strona istnieje, ale nie mamy do niej uprawnień',
 		'Unknown status.' => 'Nieznany stan',
-		'Server error %i' => 'Błąd serwera %i',
-		'Client error %i' => 'Błąd %i',
+		'Error %i %s' => 'Błąd %i %s',
+		'Error %i %s' => 'Błąd %i %s',
+		'Server not found' => 'Nie ma takiego serwera',
+		
+		'Display:' => 'Wyświetlaj:',
+		'All' => 'Wszystko',
+		'Working' => 'Działające',
+		'Broken' => 'Niedziałające'
 		
 	),
 	'en' => array(),
@@ -107,6 +124,7 @@ class LinkStatus
 	public $actual_url;
 	public $title;
 	public $error;
+	public $errno;
 	
 	/**
 	 * HTTP status code. Value 0 means that from some reasons the request could not be achieved
@@ -122,9 +140,14 @@ class LinkStatus
 	{
 		switch ($this->code) {
 			case 0:
-				return trans('Request failed: ') . $this->error;
+				switch ($this->errno) {
+					case CURLE_COULDNT_RESOLVE_HOST:
+						return trans('Server not found');
+					default:
+						return trans('Error: %s', $this->error);
+				}
 			case 200:
-				return trans('OK') . ($this->title ? ' (' . $this->title . ')' : '') . (($this->actual_url != $this->url) ? trans(' (redirected to %s)', $this->actual_url) : '');
+				return trans('OK') . ($this->title ? ' (' . $this->title . ')' : '') . (($this->actual_url != $this->url) ? trans(' (redirected to %s)', '<a href="' . htmlspecialchars($this->actual_url, ENT_HTML5 | ENT_QUOTES) . '">' . htmlspecialchars($this->actual_url) . '</a>') : '');
 			case 404:
 				return trans('No page under this URL.');
 			case 403:
@@ -133,11 +156,18 @@ class LinkStatus
 				return trans('Unknown status.');
 		}
 		
-		if ($this->code >= 500) {
-			return trans('Server error %i', $this->code);
-		} elseif ($this->code >= 400) {
-			return trans('Client error %i', $this->code);
+		// catches other cases than 403-4
+		if ($this->code >= 400) {
+			return trans('Error %i %s', $this->code, trans(self::$messages[$this->code]));
 		}
+	}
+	
+	/**
+	 * @return bool whether the link is loading properly
+	 */
+	public function good()
+	{
+		return $this->code == 200;
 	}
 	
 	public static $messages = array(
@@ -202,6 +232,7 @@ $stylesheet = 'html {
 body {
     font-family: Arial, Helvetica, sans-serif;
     font-size: .9em;
+	line-height: 1.5;
     margin: 1em 2em;
     background: #fff;
     padding: 15px 30px;
@@ -303,6 +334,55 @@ input[type=submit]:hover {
 input[type=submit]:focus {
 	background: #058;
 	cursor: pointer;
+}
+
+.button {
+	cursor: pointer;
+	background: #f6f6f6;
+	border: 1px solid;
+	border-color: #ddd #ccc #bbb #ccc;
+	border-radius: 2px;
+	-moz-border-radius: 2px;
+	-webkit-border-radius: 2px;
+	padding: 5px 8px;
+	font-family: \'Liberation Sans\', Arial, Helvetica, sans-serif;
+	color: #3a3a3a;
+	box-shadow: 0 1px 0 #eee, 0 1px 1px #f9f9f9 inset;
+}
+
+.button[disabled],.button[disabled]:hover,form:invalid .button,form:invalid .button:hover {
+	cursor: default;
+	border-color: #eee;
+	background: #f6f6f6;
+	box-shadow: none;
+	opacity: 0.8;
+	-moz-opacity: 0.8;
+	filter: alpha(opacity = 80);
+	color: #888;
+}
+
+.button.primary {
+	font-weight: bold;
+}
+
+.button.pressed {
+	background: #e6e6e6;
+	box-shadow: 0 1px 2px #ddd inset, 0 1px 1px #ccc inset;
+}
+
+.button:hover {
+	background: #f8f8f8;
+	box-shadow: 0 1px 1px #dfdfdf;
+}
+
+.button.pressed:hover {
+	background: #eee;
+	box-shadow: 0 1px 2px #ddd inset, 0 1px 1px #ccc inset;
+}
+
+li.broken {
+	background: #ffc;
+	border-bottom: 1px solid #eda;
 }
 ';
 
@@ -428,6 +508,7 @@ class Post
 }
 
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$db->query('SET NAMES ' . DB_CHARSET);
 $query = $db->query('SELECT `post_content`, `post_title`, `ID`, `guid` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `post_date` DESC');
 $posts = array();
 
@@ -450,11 +531,70 @@ while ($row = $query->fetch(PDO::FETCH_OBJ)) {
 <title>WordPress Link Checker</title>
 <style><?php echo $stylesheet ?></style>
 <h1>WordPress Link Checker</h1>
+<p><?php t('Display:') ?> <input type="button" id="see-all" class="button primary pressed" value="<?php t('All') ?>"> <input type="button" id="see-working" class="button" value="<?php t('Working') ?>"> <input type="button" class="button" id="see-broken" value="<?php t('Broken') ?>"></p>
 <?php foreach ($posts as $post): ?>
-<h2>» <a href="<?php echo $post->url ?>"><?php echo htmlspecialchars($post->title) ?></a></h2>
+<article>
+<h2>» <a href="<?php echo $post->url ?>"><?php echo htmlspecialchars($post->title, ENT_NOQUOTES | ENT_HTML5) ?></a></h2>
 <ul>
 <?php foreach ($post->links as $link): ?>
-	<li><a href="<?php echo htmlspecialchars($link->url) ?>"><?php echo htmlspecialchars(str_replace(array('https://', 'http://'), '', $link->url)), '</a>: ', htmlspecialchars($link->describe()) ?></li>
+	<li class="link <?php echo $link->good() ? 'working' : 'broken' ?>"><a href="<?php echo htmlspecialchars($link->url) ?>"><strong><?php echo htmlspecialchars(str_replace(array('https://', 'http://'), '', $link->url)), '</strong></a>: ', $link->describe() ?></li>
 <?php endforeach ?>
 </ul>
+</article>
 <?php endforeach ?>
+<script>
+var buttons = {};
+var filterState = 'all';
+buttons.all = document.getElementById('see-all');
+buttons.working = document.getElementById('see-working');
+buttons.broken = document.getElementById('see-broken');
+
+function showAll(className) {
+	for (var key in all = document.getElementsByClassName(className)) {
+		if (!isNaN(key)) {
+			all[key].style.display = 'list-item';
+		}
+	}
+}
+function hideAll(className) {
+	for (var key in all = document.getElementsByClassName(className)) {
+		if (!isNaN(key)) {
+			all[key].style.display = 'none';
+		}
+	}
+}
+function switchButtons(newState) {
+	document.getElementById('see-' + filterState).className = document.getElementById('see-' + filterState).className.replace(/\s*pressed/, '');
+	document.getElementById('see-' + (filterState = newState)).className += ' pressed';
+}
+
+buttons.all.onclick = function() {
+	showAll('link');
+	switchButtons('all');
+};
+buttons.working.onclick = function() {
+	showAll('working');
+	hideAll('broken');
+	switchButtons('working');
+};
+buttons.broken.onclick = function() {
+	hideAll('working');
+	showAll('broken');
+	switchButtons('broken');
+};
+
+for (var key in hdrs = document.getElementsByTagName('h2')) {
+	if (isNaN(key)) {
+		continue;
+	}
+	hdrs[key].style.cursor = 'pointer';
+	hdrs[key].onclick = function(e) {
+		e = e || window.event;
+		if (this.parentNode.getElementsByTagName('ul')[0].style.display != 'none') {
+			this.parentNode.getElementsByTagName('ul')[0].style.display = 'none';
+		} else {
+			this.parentNode.getElementsByTagName('ul')[0].style.display = 'block';
+		}
+	};
+}
+</script>

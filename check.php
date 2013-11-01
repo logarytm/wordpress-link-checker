@@ -5,7 +5,7 @@
  * @package wordpress-link-checker
  * @license http://wtfpl.net/about WTFPL
  * @link    http://winek.tk
- * @version 0.2.1
+ * @version 0.3
  * @author  Olgierd „winek” Grzyb <hintpl@gmail.com>
  */
 
@@ -43,7 +43,11 @@ function check_links($text)
  */
 function check_status($url)
 {
-	global $stats; // Yes. Global variables and ugly, evil and bad.
+	global $stats, $status_cache; // Yes. Global variables and ugly, evil and bad.
+	
+	if (isset($status_cache[$url])) {
+		return $status_cache[$url];
+	}
 	
 	++$stats['all'];
 	
@@ -68,7 +72,8 @@ function check_status($url)
 		// Failed, returning status as is
 		$status->error = curl_error($curl);
 		$status->errno = curl_errno($curl);
-		return $status;
+		
+		return $status_cache[$url] = $status;
 	}
 	
 	preg_match('#<title>(.*?)</title>#is', $ret, $m);
@@ -87,7 +92,7 @@ function check_status($url)
 	$status->actual_url = curl_getinfo($curl, CURLINFO_EFFECTIVE_URL);
 	
 	curl_close($curl);
-	return $status;
+	return $status_cache[$url] = $status;
 }
 
 $stats = array(
@@ -95,6 +100,7 @@ $stats = array(
 	'broken' => 0,
 	'working' => 0,
 );
+$status_cache = array();
 
 /**
  * Translation table for supported languages.

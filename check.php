@@ -125,7 +125,7 @@ $translations = array(
 		'Working' => 'Działające',
 		'Broken' => 'Niedziałające',
 		
-		'Stats' => 'Statystyki:',
+		'Stats:' => 'Statystyki:',
 		'all' => 'wszystkich',
 		'broken' => 'niedziałających',
 		'working' => 'działających',

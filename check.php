@@ -5,7 +5,7 @@
  * @package wordpress-link-checker
  * @license http://wtfpl.net/about WTFPL
  * @link    http://winek.tk
- * @version 0.2
+ * @version 0.2.1
  * @author  Olgierd „winek” Grzyb <hintpl@gmail.com>
  */
 
@@ -43,6 +43,10 @@ function check_links($text)
  */
 function check_status($url)
 {
+	global $stats; // Yes. Global variables and ugly, evil and bad.
+	
+	++$stats['all'];
+	
 	$status = new LinkStatus;
 	$status->url = $status->actual_url = $url;
 	
@@ -72,11 +76,24 @@ function check_status($url)
 	}
 	
 	$status->code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+	
+	if ($status->code >= 400) {
+		++$stats['broken'];
+	} else {
+		++$stats['working'];
+	}
+	
 	$status->actual_url = curl_getinfo($curl, CURLINFO_EFFECTIVE_URL);
 	
 	curl_close($curl);
 	return $status;
 }
+
+$stats = array(
+	'all' => 0,
+	'broken' => 0,
+	'working' => 0,
+);
 
 /**
  * Translation table for supported languages.
@@ -106,7 +123,12 @@ $translations = array(
 		'Display:' => 'Wyświetlaj:',
 		'All' => 'Wszystko',
 		'Working' => 'Działające',
-		'Broken' => 'Niedziałające'
+		'Broken' => 'Niedziałające',
+		
+		'Stats': 'Statystyki:',
+		'all' => 'wszystkich',
+		'broken' => 'niedziałających',
+		'working' => 'działających',
 		
 	),
 	'en' => array(),
@@ -508,7 +530,8 @@ class Post
 }
 
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$db->query('SET NAMES ' . DB_CHARSET);
+// TODO: include <select> with character set to satisfy everyone :D
+$db->query('SET NAMES ' . (defined('DB_CHARSET') ? DB_CHARSET : 'utf8'));
 $query = $db->query('SELECT `post_content`, `post_title`, `ID`, `guid` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `post_date` DESC');
 $posts = array();
 
@@ -531,6 +554,7 @@ while ($row = $query->fetch(PDO::FETCH_OBJ)) {
 <title>WordPress Link Checker</title>
 <style><?php echo $stylesheet ?></style>
 <h1>WordPress Link Checker</h1>
+<p><strong><?php t('Stats:') ?></strong> <?php echo $stats['all'] ?> <?php t('all') ?>, <?php echo $stats['working'] ?> <?php t('working') ?>, <?php echo $stats['broken'] ?> <?php t('broken') ?></p>
 <p><?php t('Display:') ?> <input type="button" id="see-all" class="button primary pressed" value="<?php t('All') ?>"> <input type="button" id="see-working" class="button" value="<?php t('Working') ?>"> <input type="button" class="button" id="see-broken" value="<?php t('Broken') ?>"></p>
 <?php foreach ($posts as $post): ?>
 <article>

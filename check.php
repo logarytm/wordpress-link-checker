@@ -17,7 +17,7 @@
 function find_links($text)
 {
 	if (preg_match_all('$\bhttps?://[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|]$i', $text, $m, PREG_SET_ORDER)) {
-		return $m;
+		return array_unique(array_map(create_function('$m', 'return $m[0];'), $m));
 	}
 	return array();
 }
@@ -31,7 +31,7 @@ function check_links($text)
 {
 	$results = array();
 	foreach (find_links($text) as $link) {
-		$results[] = check_status($link[0]);
+		$results[] = check_status($link);
 	}
 	return $results;
 }

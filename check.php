@@ -2,6 +2,9 @@
 /**
  * WordPress Link Checker
  * 
+ * Usage: Put this file in your WordPress installation directory. Enter the URL:
+ * http://siteaddress.net/check.php.
+ * 
  * @package wordpress-link-checker
  * @license http://wtfpl.net/about WTFPL
  * @link    http://winek.tk

@@ -1,15 +1,24 @@
 <?php
 /**
- * WordPress Link Checker
+ * WordPress Link Checker » Version 0.4
  * 
- * Usage: Put this file in your WordPress installation directory. Enter the URL:
- * http://siteaddress.net/check.php.
+ * This script will check usability of URLs linked in your posts.
+ * 
+ * Usage: Put this file in your WordPress installation directory. Enter the address:
+ * http://siteaddress.com/check.php. Wait until the process is finished.
+ * 
+ * If open_basedir is enabled, then the script may have some troubles to handle
+ * redirection. This is caused by unavailabity of CURLOPT_FOLLOWLOCATION in these
+ * cases. A workaround is going to be implemented soon.
+ * 
+ * If you have found a bug or you have an idea for an enhancement, feel free to report an issue on GitHub:
+ * https://github.com/winek/wordpress-link-checker/issues/
  * 
  * @package wordpress-link-checker
  * @license http://wtfpl.net/about WTFPL
- * @link    http://winek.tk
+ * @link    http://winek.tk                                Author's website
+ * @link    http://github.com/winek/wordpress-link-checker GitHub
  * @version 0.4
- * @author  Olgierd „winek” Grzyb <hintpl@gmail.com>
  */
 
 define('REGEX_URL', '#\bhttps?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@\#/%=~_|]#i');

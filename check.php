@@ -133,6 +133,7 @@ function get_language($sDefault = 'en', $ihSystemLang)
 
 /**
  * Translates a phrase and sends to stdout.
+ * Accepts printf-like additional parameters.
  * @param string $phrase
  */
 function t($phrase)
@@ -141,8 +142,12 @@ function t($phrase)
 }
 
 /**
- * Translates a phrase and sends to stdout.
+ * Translates a phrase.
+ * May be called with more than one parameter - additional parameters
+ * will be passed to sprintf call.
  * @param string $phrase
+ * 
+ *     echo trans('Fatal error: %s', $error);
  */
 function trans($phrase)
 {
@@ -219,7 +224,7 @@ $translations = array(
 		'Error: %s' => 'Błąd: %s',
 		' (redirected to %s)' => ' (przekierowanie do %s)',
 		'No page under this URL.' => 'Nie znaleziono strony',
-		'Permission denied' => 'Brak uprawnień',
+		'Permission denied' => 'Brak uprawnień (403)',
 		'Unknown status.' => 'Nieznany stan',
 		'Error %i %s' => 'Błąd %i %s',
 		'Error %i %s' => 'Błąd %i %s',

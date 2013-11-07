@@ -27,7 +27,7 @@ define('REGEX_IS_URL', '#^https?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|
 /**
  * Finds URLs in a post body.
  * @param string $text Post body
- * @return array multi-dimensional array of found URLs. Each item is another array, where the URL string is at 0 index.
+ * @return array multi-dimensional array of found URLs.
  */
 function find_links($text)
 {

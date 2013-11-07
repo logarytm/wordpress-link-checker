@@ -1,22 +1,37 @@
 <?php
 /**
- * WordPress Link Checker
+ * WordPress Link Checker » Version 0.4
+ * 
+ * This script will check usability of URLs linked in your posts.
+ * 
+ * Usage: Put this file in your WordPress installation directory. Enter the address:
+ * http://siteaddress.com/check.php. Wait until the process is finished.
+ * 
+ * If open_basedir is enabled, then the script may have some troubles to handle
+ * redirection. This is caused by unavailabity of CURLOPT_FOLLOWLOCATION in these
+ * cases. A workaround is going to be implemented soon.
+ * 
+ * If you have found a bug or you have an idea for an enhancement, feel free to report an issue on GitHub:
+ * https://github.com/winek/wordpress-link-checker/issues/
  * 
  * @package wordpress-link-checker
  * @license http://wtfpl.net/about WTFPL
- * @link    http://winek.tk
- * @version 0.3
- * @author  Olgierd „winek” Grzyb <hintpl@gmail.com>
+ * @link    http://winek.tk                                Author's website
+ * @link    http://github.com/winek/wordpress-link-checker GitHub
+ * @version 0.4
  */
+
+define('REGEX_URL', '#\bhttps?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@\#/%=~_|]#i');
+define('REGEX_IS_URL', '#^https?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|]$#i');
 
 /**
  * Finds URLs in a post body.
  * @param string $text Post body
- * @return array multi-dimensional array of found URLs. Each item is another array, where the URL string is at 0 index.
+ * @return array multi-dimensional array of found URLs.
  */
 function find_links($text)
 {
-	if (preg_match_all('$\bhttps?://[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|]$i', $text, $m, PREG_SET_ORDER)) {
+	if (preg_match_all(REGEX_URL, $text, $m, PREG_SET_ORDER)) {
 		return array_unique(array_map(create_function('$m', 'return $m[0];'), $m));
 	}
 	return array();
@@ -37,26 +52,134 @@ function check_links($text)
 }
 
 /**
+ * Outputs a string, HTML-escaped.
+ * @param string $string
+ */
+function h($string)
+{
+	echo htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
+}
+
+/**
+ * Loads a post from an identifier.
+ * @param int $id
+ * @return Post
+ */
+function load_post($id)
+{
+	global $wpdb;
+	
+	$row = array_shift($wpdb->get_results($wpdb->prepare(
+		'SELECT `ID`, `post_content`, `post_title`, `guid` FROM `' . $wpdb->prefix . 'posts` WHERE `ID` = %d',
+		$id
+	), OBJECT_K));
+	$post = $posts[$row->ID] = new Post;
+	$post->title = $row->post_title;
+	$post->url = $row->guid;
+	$post->id = $row->ID;
+	$post->content = $row->post_content;
+	
+	return $post;
+}
+
+/**
+ * Loads all published posts' IDs from WordPress blog database
+ * and returns them as an array. No additional information is returned.
+ * If you need to load a single post, use [get_post()].
+ * @return Post[]
+ */
+function load_post_ids()
+{
+	global $wpdb;
+	
+	// This is hacky: $wpdb->get_results(..., OBJECT_K) returns array of objects indexed by first column's value.
+	// As our first column is the ID, we may perform an array_keys() to retrieve post identifiers.
+	return array_keys($wpdb->get_results('SELECT `ID` FROM `' . $wpdb->prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `post_date` DESC', OBJECT_K));
+}
+
+/**
+ * Detects the client language.
+ * Stolen from somewhere on the Internet.
+ * @param string sDefault default language name
+ * @param array languages
+ * @return string
+ */
+function get_language($sDefault = 'en', $ihSystemLang)
+{
+	$sLangs = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
+	preg_match_all(
+	'!([a-zA-Z]+)(?:-[a-zA-Z]+)?(?: *; *q *= *([01]\.[0-9]+))?!',
+	$sLangs, $shFound);
+
+	foreach ($shFound[1] as $i => $sLang) {
+		$iW = (float)$shFound[2][$i];
+		$ihUserLang[$sLang] = $iW > 0 ? $iW : 1;
+	}
+	$iChoiceWeight = 0;
+	$sChoiceLang = '';
+	foreach ($ihSystemLang as $sLang => $iW) {
+		if (isset($ihUserLang[$sLang])) {
+			$iTmpChoice = $iW * $ihUserLang[$sLang];
+
+			if ($iTmpChoice > $iChoiceWeight and $iTmpChoice > 0) {
+				$iChoiceWeight = $iTmpChoice;
+				$sChoiceLang = $sLang;
+			}
+		}
+	}
+
+	return $sChoiceLang != '' ? $sChoiceLang : $sDefault;
+}
+
+/**
+ * Translates a phrase and sends to stdout.
+ * Accepts printf-like additional parameters.
+ * @param string $phrase
+ */
+function t($phrase)
+{
+	echo htmlspecialchars(call_user_func_array('trans', func_get_args()));
+}
+
+/**
+ * Translates a phrase.
+ * May be called with more than one parameter - additional parameters
+ * will be passed to sprintf call.
+ * @param string $phrase
+ * 
+ *     echo trans('Fatal error: %s', $error);
+ */
+function trans($phrase)
+{
+	global $lang, $translations;
+	$args = func_get_args(); // [0] is $phrase
+	
+	if (isset($translations[$lang][$args[0]])) {
+		$args[0] = $translations[$lang][$args[0]];
+	}
+	
+	return call_user_func_array('sprintf', $args); // Yep, bad hack :3
+}
+
+/**
  * Checks the status for a given link.
  * @param string $url
  * @return LinkStatus
  */
 function check_status($url)
 {
-	global $stats, $status_cache; // Yes. Global variables and ugly, evil and bad.
+	static $status_cache = array();
 	
 	if (isset($status_cache[$url])) {
 		return $status_cache[$url];
 	}
-	
-	++$stats['all'];
 	
 	$status = new LinkStatus;
 	$status->url = $status->actual_url = $url;
 	
 	$curl = curl_init();
 	curl_setopt_array($curl, array(
-		CURLOPT_URL            => $url,
+		CURLOPT_URL						=> $url,
 		CURLOPT_RETURNTRANSFER => true,
 		CURLOPT_SSL_VERIFYPEER => false,
 	));
@@ -83,24 +206,11 @@ function check_status($url)
 	
 	$status->code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 	
-	if ($status->code >= 400) {
-		++$stats['broken'];
-	} else {
-		++$stats['working'];
-	}
-	
 	$status->actual_url = curl_getinfo($curl, CURLINFO_EFFECTIVE_URL);
 	
 	curl_close($curl);
 	return $status_cache[$url] = $status;
 }
-
-$stats = array(
-	'all' => 0,
-	'broken' => 0,
-	'working' => 0,
-);
-$status_cache = array();
 
 /**
  * Translation table for supported languages.
@@ -108,20 +218,13 @@ $status_cache = array();
  */
 $translations = array(
 	'pl' => array(
-		'Database configuration' => 'Ustaw bazę danych',
-		'DB name' => 'Nazwa bazy danych',
-		'Server' => 'Serwer',
-		'usually' => 'zwykle',
-		'Username' => 'Nazwa użytkownika',
-		'Password' => 'Hasło',
-		'We couldn\'t find information about your blog database. Please enter missing data into the form below.' => 'Nie możemy znaleźć konfiguracji Twojej bazy danych. Wpisz odpowiednie dane do formularza poniżej.',
-		'Table prefix' => 'Prefiks',
-		'Next' => 'Dalej',
+		'No WordPress configuration (wp-config.php) found in current location. This script should be uploaded into root directory of your installation.' =>
+		'Pliku wp-config.php nie ma w obecnym katalogu. Czy wrzuciłeś skrypt do głównego katalogu instalacji WordPressa?',
 		
 		'Error: %s' => 'Błąd: %s',
 		' (redirected to %s)' => ' (przekierowanie do %s)',
 		'No page under this URL.' => 'Nie znaleziono strony',
-		'The page probably exists, but we don\'t have permission to see it.' => 'Strona istnieje, ale nie mamy do niej uprawnień',
+		'Permission denied' => 'Brak uprawnień (403)',
 		'Unknown status.' => 'Nieznany stan',
 		'Error %i %s' => 'Błąd %i %s',
 		'Error %i %s' => 'Błąd %i %s',
@@ -140,6 +243,20 @@ $translations = array(
 	),
 	'en' => array(),
 );
+
+/**
+ * Describes a post. You may load additional data using the identifier
+ * from the "id" property.
+ * Posts are loaded within [load_posts()].
+ */
+class Post
+{
+	public $content;
+	public $url;
+	public $title;
+	public $links;
+	public $id;
+}
 
 /**
  * Describes status for a single link. Stores the title (if the page could be retrieved),
@@ -180,7 +297,7 @@ class LinkStatus
 			case 404:
 				return trans('No page under this URL.');
 			case 403:
-				return trans('The page probably exists, but we don\'t have permission to see it.');
+				return trans('Premission denied.');
 			default:
 				return trans('Unknown status.');
 		}
@@ -196,7 +313,7 @@ class LinkStatus
 	 */
 	public function good()
 	{
-		return $this->code == 200;
+		return $this->code < 400 && $this->code > 0;
 	}
 	
 	public static $messages = array(
@@ -254,59 +371,59 @@ class LinkStatus
 }
 
 $stylesheet = 'html {
-    color: #666;
-    background: #f7f7f7;
+		color: #555;
+		background: #f7f7f7;
 }
 
 body {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: .9em;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: .9em;
 	line-height: 1.5;
-    margin: 1em 2em;
-    background: #fff;
-    padding: 15px 30px;
-    border-radius: 3px;
-    -moz-border-radius: 3px;
-    -webkit-border-radius: 3px;
-    -o-border-radius: 3px;
-    border: 1px #e0e0e0 solid;
-    box-shadow: 0 2px 1px #eee;
+	margin: 1em 2em;
+	background: #fff;
+	padding: 15px 30px;
+	border-radius: 3px;
+	-moz-border-radius: 3px;
+	-webkit-border-radius: 3px;
+	-o-border-radius: 3px;
+	border: 1px #e0e0e0 solid;
+	box-shadow: 0 2px 1px #eee;
 }
 
 a {
-    color: #28c;
-    text-decoration: none;
+	color: #28c;
+	text-decoration: none;
 }
 
 a:hover {
-    color: #048;
-    text-decoration: underline;
+	color: #048;
+	text-decoration: underline;
 }
 
 h1 {
-    border-bottom: 1px #eee solid;
-    line-height: 1.7;
-    font-size: 2em;
-    color: #777;
+	border-bottom: 1px #eee solid;
+	line-height: 1.7;
+	font-size: 2em;
+	color: #777;
 }
 
 h1, h2 {
-    letter-spacing: -1px;
+	letter-spacing: -1px;
 }
 
 h2 {
-    color: #ccc;
-    margin-top: 1.2em;
-    margin-bottom: .5em;
+	color: #ccc;
+	margin-top: 1.2em;
+	margin-bottom: .5em;
 }
 
 h2 a {
-    color: #000;
+	color: #000;
 }
 
 h2 a:hover {
-    color: #27c;
-    text-decoration: none;
+	color: #27c;
+	text-decoration: none;
 }
 
 fieldset {
@@ -336,9 +453,9 @@ input[type=text], input[type=password] {
 	font-size: .9em;
 	border: 1px #d7d7d7 solid;
 	border-radius: 2px;
-    -moz-border-radius: 2px;
-    -webkit-border-radius: 2px;
-    -o-border-radius: 2px;
+	-moz-border-radius: 2px;
+	-webkit-border-radius: 2px;
+	-o-border-radius: 2px;
 }
 
 input[type=submit] {
@@ -349,9 +466,9 @@ input[type=submit] {
 	border: 0;
 	color: #fff;
 	border-radius: 3px;
-    -moz-border-radius: 3px;
-    -webkit-border-radius: 3px;
-    -o-border-radius: 3px;
+	-moz-border-radius: 3px;
+	-webkit-border-radius: 3px;
+	-o-border-radius: 3px;
 	text-shadow: 0 1px 1px #037;
 }
 
@@ -413,147 +530,61 @@ li.broken {
 	background: #ffc;
 	border-bottom: 1px solid #eda;
 }
+
+#loader {
+	text-align: center;
+}
 ';
-
-/**
- * Detects the client language.
- * Stolen from somewhere on the Internet.
- * @param string sDefault default language name
- * @param array languages
- * @return string
- */
-function get_language($sDefault = 'en', $ihSystemLang)
-{
-	$sLangs = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
-	preg_match_all(
-	'!([a-zA-Z]+)(?:-[a-zA-Z]+)?(?: *; *q *= *([01]\.[0-9]+))?!',
-	$sLangs, $shFound);
-
-	foreach ($shFound[1] as $i => $sLang) {
-		$iW = (float)$shFound[2][$i];
-		$ihUserLang[$sLang] = $iW > 0 ? $iW : 1;
-	}
-	$iChoiceWeight = 0;
-	$sChoiceLang = '';
-	foreach ($ihSystemLang as $sLang => $iW) {
-		if (isset($ihUserLang[$sLang])) {
-			$iTmpChoice = $iW * $ihUserLang[$sLang];
-
-			if ($iTmpChoice > $iChoiceWeight and $iTmpChoice > 0) {
-				$iChoiceWeight = $iTmpChoice;
-				$sChoiceLang = $sLang;
-			}
-		}
-	}
-
-	return $sChoiceLang != '' ? $sChoiceLang : $sDefault;
-}
-
-/**
- * Translates a phrase and sends to stdout.
- * @param string $phrase
- */
-function t($phrase)
-{
-	global $lang, $translations;
-	$args = func_get_args(); // [0] is $phrase
-	
-	if (isset($translations[$lang][$args[0]])) {
-		$args[0] = $translations[$lang][$args[0]];
-	}
-	
-	echo htmlspecialchars(call_user_func_array('sprintf', $args)); // Yep, bad hack :3
-}
-
-/**
- * Translates a phrase and sends to stdout.
- * @param string $phrase
- */
-function trans($phrase)
-{
-	global $lang, $translations;
-	$args = func_get_args(); // [0] is $phrase
-	
-	if (isset($translations[$lang][$args[0]])) {
-		$args[0] = $translations[$lang][$args[0]];
-	}
-	
-	return call_user_func_array('sprintf', $args); // Yep, bad hack :3
-}
 
 $lang = get_language('en', array('en' => 1, 'pl' => 0.8));
 @set_time_limit(0);
 
 if (file_exists('wp-config.php')) {
 	require_once 'wp-config.php';
-	$db = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME, DB_USER, DB_PASSWORD);
-	$prefix = $table_prefix;
-} elseif (
-	!empty($_POST['db_host']) &&
-	!empty($_POST['db_name']) &&
-	!empty($_POST['db_user']) &&
-	isset($_POST['db_password']) &&
-	isset($_POST['db_prefix'])
-) {
-	$db = new PDO('mysql:host=' . $_POST['db_host'] . ';dbname=' . $_POST['db_name'], $_POST['db_user'], $_POST['db_password']);
-	$prefix = $_POST['db_prefix'];
 } else {
-?>
-<!DOCTYPE html>
-<meta charset="UTF-8">
-<title><?php t('Database configuration') ?> – WordPress Link Checker</title>
-<style><?php echo $stylesheet ?></style>
-<h1><?php t('Database configuration') ?> – WordPress Link Checker</h1>
-<p><?php t('We couldn\'t find information about your blog database. Please enter missing data into the form below.') ?></p>
-<form method="POST">
-	<fieldset>
-		<legend><?php t('Database configuration') ?></legend>
-		<dl>
-			<dt><label for="host"><?php t('Server') ?>: (<?php t('usually') ?>: <code>localhost</code>)</label></dt>
-			<dd><input type="text" id="host" name="db_host" autofocus></dd>
-			<dt><label for="db"><?php t('DB name') ?>:</label></dt>
-			<dd><input type="text" id="db" name="db_name"></dd>
-			<dt><label for="user"><?php t('Username') ?>:</label></dt>
-			<dd><input type="text" id="user" name="db_user"></dd>
-			<dt><label for="password"><?php t('Password') ?>:</label></dt>
-			<dd><input type="password" id="password" name="db_password"></dd>
-			<dt><label for="prefix"><?php t('Table prefix') ?>:</label></dt>
-			<dd><input type="text" id="prefix" name="db_prefix" value="wp_"></dd>
-		</dl>
-		<input type="submit" value="<?php t('Next') ?> »">
-	</fieldset>
-</form>
-<?php
+	die(trans('No WordPress configuration (wp-config.php) found in current location. This script should be uploaded into root directory of your installation.'));
+}
+
+if (!empty($_POST['getstatus']) && ctype_digit($_POST['getstatus'])) {
+	/**
+	 * We want to be so DRY.
+	 * @param string $value
+	 * @return string the value, HTML-escaped
+	 */
+	function esc($value)
+	{
+		return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+	}
+	
+	try {
+		$post = load_post($_POST['getstatus']);
+	} catch (InvalidArgumentException $e) {
+		header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+		exit;
+	}
+	
+	$links = check_links($post->content);
+	
+	if (count($links) <= 0) {
+		header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found'); // DRY!
+		exit;
+	}
+	
+	header('Content-Type: text/xml');
+	echo '<?xml version="1.0"?>
+<post id="' . $post->id . '" url="' . esc($post->url) . '" title="' . esc($post->title) . '">
+	<links>';
+	
+	foreach ($links as $link) {
+		echo '<link url="' . esc($link->url) . '" status="' . ($link->good() ? 'working' : 'broken') . '" description="' . esc($link->describe()) . '" />';
+	}
+	
+	echo '</links>
+</post>';
 	exit;
 }
 
-class Post
-{
-	public $content;
-	public $url;
-	public $title;
-	public $links;
-	public $id;
-}
-
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-// TODO: include <select> with character set to satisfy everyone :D
-$db->query('SET NAMES ' . (defined('DB_CHARSET') ? DB_CHARSET : 'utf8'));
-$query = $db->query('SELECT `post_content`, `post_title`, `ID`, `guid` FROM `' . $prefix . 'posts` WHERE `post_type` = \'post\' AND `post_status` = \'publish\' ORDER BY `post_date` DESC');
-$posts = array();
-
-while ($row = $query->fetch(PDO::FETCH_OBJ)) {
-	$links = check_links($row->post_content);
-	
-	if (count($links) > 0) {
-		$post = $posts[$row->ID] = new Post;
-		$post->title = $row->post_title;
-		$post->url = $row->guid;
-		$post->id = $row->ID;
-		$post->content = $row->post_content;
-		$post->links = $links;
-	}
-}
+$post_ids = load_post_ids();
 
 ?>
 <!DOCTYPE html>
@@ -561,24 +592,24 @@ while ($row = $query->fetch(PDO::FETCH_OBJ)) {
 <title>WordPress Link Checker</title>
 <style><?php echo $stylesheet ?></style>
 <h1>WordPress Link Checker</h1>
-<p><strong><?php t('Stats:') ?></strong> <?php echo $stats['all'] ?> <?php t('all') ?>, <?php echo $stats['working'] ?> <?php t('working') ?>, <?php echo $stats['broken'] ?> <?php t('broken') ?></p>
+<p><strong><?php t('Stats:') ?></strong> <span id="stats-all">0</span> <?php t('all') ?>, <span id="stats-working">0</span> <?php t('working') ?>, <span id="stats-broken">0</span> <?php t('broken') ?></p>
 <p><?php t('Display:') ?> <input type="button" id="see-all" class="button primary pressed" value="<?php t('All') ?>"> <input type="button" id="see-working" class="button" value="<?php t('Working') ?>"> <input type="button" class="button" id="see-broken" value="<?php t('Broken') ?>"></p>
-<?php foreach ($posts as $post): ?>
-<article>
-<h2>» <a href="<?php echo $post->url ?>"><?php echo htmlspecialchars($post->title, ENT_NOQUOTES | ENT_HTML5) ?></a></h2>
-<ul>
-<?php foreach ($post->links as $link): ?>
-	<li class="link <?php echo $link->good() ? 'working' : 'broken' ?>"><a href="<?php echo htmlspecialchars($link->url) ?>"><strong><?php echo htmlspecialchars(str_replace(array('https://', 'http://'), '', $link->url)), '</strong></a>: ', $link->describe() ?></li>
-<?php endforeach ?>
-</ul>
-</article>
-<?php endforeach ?>
+<main id="list"></main>
+<div id="loader"><img src="data:image/gif;base64,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" alt=""></div>
 <script>
-var buttons = {};
-var filterState = 'all';
-buttons.all = document.getElementById('see-all');
-buttons.working = document.getElementById('see-working');
-buttons.broken = document.getElementById('see-broken');
+var postIDs = [<?php echo implode(',', $post_ids) ?>],
+	buttons = {
+		all:     document.getElementById('see-all'),
+		working: document.getElementById('see-working'),
+		broken:  document.getElementById('see-broken')
+	},
+	stats = {
+		all:     document.getElementById('stats-all'),
+		working: document.getElementById('stats-working'),
+		broken:  document.getElementById('stats-broken')
+	},
+	filterState = 'all',
+	interval = 500;
 
 function showAll(className) {
 	for (var key in all = document.getElementsByClassName(className)) {
@@ -598,6 +629,24 @@ function switchButtons(newState) {
 	document.getElementById('see-' + filterState).className = document.getElementById('see-' + filterState).className.replace(/\s*pressed/, '');
 	document.getElementById('see-' + (filterState = newState)).className += ' pressed';
 }
+function xmlHttp() {
+	var xmlhttp;
+	try {
+		xmlhttp = new XMLHttpRequest(); 
+	} catch(e) {
+		try {
+			xmlhttp = new ActiveXObject('Msxml2.XMLHTTP'); 
+		} catch(e) {
+			try {
+				xmlhttp = new ActiveXObject('Microsoft.XMLHTTP'); 
+			} catch(e) {
+				alert('It seems you have a legacy browser which does not support AJAX.');
+				return false;
+			}
+		}
+	}
+	return xmlhttp;
+}
 
 buttons.all.onclick = function() {
 	showAll('link');
@@ -613,19 +662,69 @@ buttons.broken.onclick = function() {
 	showAll('broken');
 	switchButtons('broken');
 };
+function doCheckPost(i) {
+	setTimeout(function() {
+		checkPost(postIDs[i])
+	}, interval += 500);
+}
+function incrementStats(statField) {
+	statField.innerHTML = parseInt(statField.innerHTML) + 1;
+}
 
-for (var key in hdrs = document.getElementsByTagName('h2')) {
-	if (isNaN(key)) {
-		continue;
+for (var i in postIDs) {
+	if (!isNaN(i)) {
+		doCheckPost(i);
 	}
-	hdrs[key].style.cursor = 'pointer';
-	hdrs[key].onclick = function(e) {
-		e = e || window.event;
-		if (this.parentNode.getElementsByTagName('ul')[0].style.display != 'none') {
-			this.parentNode.getElementsByTagName('ul')[0].style.display = 'none';
-		} else {
-			this.parentNode.getElementsByTagName('ul')[0].style.display = 'block';
+}
+
+function checkPost(id) {
+	var xmlhttp = xmlHttp();
+	xmlhttp.onreadystatechange = function() {
+		// Don't touch. Appreciate it works.
+		if (xmlhttp.readyState == 4 && xmlhttp.status == 200 && xmlhttp.responseXML) {
+			var entry = document.createElement('article'), links;
+			var post = xmlhttp.responseXML.getElementsByTagName('post')[0];
+			var header = document.createElement('h2');
+			header.appendChild(document.createTextNode('» '));
+			var link = document.createElement('a');
+			link.href = post.getAttribute('url');
+			link.appendChild(document.createTextNode(post.getAttribute('title')));
+			header.appendChild(link);
+			var list = document.createElement('ul');
+			entry.appendChild(header);
+			entry.appendChild(list);
+			
+			for (var i in links = post.getElementsByTagName('link')) {
+				if (isNaN(i)) {
+					continue;
+				}
+				if (links[i].getAttribute('status') == 'broken') {
+					incrementStats(stats.broken);
+				} else {
+					incrementStats(stats.working);
+				}
+				incrementStats(stats.all);
+				var item = document.createElement('li');
+				item.className = 'link ' + links[i].getAttribute('status');
+				var emphasis = document.createElement('strong');
+				var url = document.createElement('a');
+				url.href = links[i].getAttribute('url');
+				url.appendChild(document.createTextNode(links[i].getAttribute('url')));
+				emphasis.appendChild(url);
+				item.appendChild(emphasis);
+				item.appendChild(document.createTextNode(' – '));
+				item.innerHTML += links[i].getAttribute('description');
+				list.appendChild(item);
+			}
+			
+			document.getElementById('list').appendChild(entry);
 		}
-	};
+		if (id == postIDs[postIDs.length - 1]) {
+			document.getElementById('loader').style.visibility = 'hidden';
+		}
+	}
+	xmlhttp.open('POST', '<?php echo $_SERVER['SCRIPT_NAME'] ?>', true);
+	xmlhttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+	xmlhttp.send('getstatus=' + encodeURIComponent(id));
 }
 </script>

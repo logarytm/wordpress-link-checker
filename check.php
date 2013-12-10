@@ -49,7 +49,7 @@ function find_links($text)
  * of LinkStatus instances.
  *
  * @param  string       $text post body
- * @return LinkStatus[]
+ * @return Link[]
  */
 function check_links($text)
 {
@@ -114,7 +114,7 @@ function h($string)
  * @param  array  languages
  * @return string
  */
-function get_language($sDefault = 'en', $ihSystemLang)
+function get_language($sDefault = 'en', $ihSystemLang = array())
 {
     $sLangs = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
     preg_match_all(
@@ -176,9 +176,9 @@ function translate($phrase)
 
 /**
  * Checks the status for a given link.
- * 
+ *
  * @param  string     $url
- * @return LinkStatus
+ * @return Link
  */
 function check_status($url)
 {
@@ -188,7 +188,7 @@ function check_status($url)
         return $status_cache[$url];
     }
 
-    $status = new LinkStatus;
+    $status = new Link;
     $status->url = $status->actual_url = $url;
 
     $curl = curl_init();
@@ -278,7 +278,7 @@ class Post
  * If the page did redirect us somewhere else, the the actual_url property is also stored
  * for statistical purposes.
  */
-class LinkStatus
+class Link
 {
     public $url;
     public $actual_url;
@@ -384,7 +384,66 @@ class LinkStatus
     );
 }
 
-$stylesheet = 'html {
+$lang = get_language('en', array('en' => 1, 'pl' => 0.8));
+@set_time_limit(0);
+
+if (file_exists('wp-config.php')) {
+    require_once 'wp-config.php';
+} else {
+    die(translate('No WordPress configuration (wp-config.php) found in current location. This script should be uploaded into root directory of your installation.'));
+}
+
+if (!empty($_POST['getstatus']) && ctype_digit($_POST['getstatus'])) {
+    /**
+     * We want to be so DRY.
+     * @param  string $value
+     * @return string the value, HTML-escaped
+     */
+    function esc($value)
+    {
+        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    }
+
+    try {
+        $post = load_post($_POST['getstatus']);
+    } catch (InvalidArgumentException $e) {
+        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        exit;
+    }
+
+    $links = check_links($post->content);
+
+    if (count($links) <= 0) {
+        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        exit;
+    }
+
+    header('Content-Type: text/xml');
+    echo '<?xml version="1.0"?>
+<post id="' . $post->id . '" url="' . esc($post->url) . '" title="' . esc($post->title) . '">
+    <links>';
+
+    foreach ($links as $link) {
+        echo '<link url="' . esc($link->url) . '" status="' . ($link->good() ? 'working' : 'broken') . '" description="' . esc($link->describe()) . '" />';
+    }
+
+    echo '</links>
+</post>';
+    exit;
+}
+
+$post_ids = load_post_ids();
+
+/*
+ * The "internals" part finishes here. Now, we should display a page template.
+ */
+
+?>
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<title>WordPress Link Checker</title>
+<style>
+html {
         color: #555;
         background: #f7f7f7;
 }
@@ -548,67 +607,7 @@ li.broken {
 #loader {
     text-align: center;
 }
-';
-
-$lang = get_language('en', array('en' => 1, 'pl' => 0.8));
-@set_time_limit(0);
-
-if (file_exists('wp-config.php')) {
-    require_once 'wp-config.php';
-} else {
-    die(translate('No WordPress configuration (wp-config.php) found in current location. This script should be uploaded into root directory of your installation.'));
-}
-
-if (!empty($_POST['getstatus']) && ctype_digit($_POST['getstatus'])) {
-    /**
-     * We want to be so DRY.
-     * @param  string $value
-     * @return string the value, HTML-escaped
-     */
-    function esc($value)
-    {
-        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-    }
-
-    try {
-        $post = load_post($_POST['getstatus']);
-    } catch (InvalidArgumentException $e) {
-        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
-        exit;
-    }
-
-    $links = check_links($post->content);
-
-    if (count($links) <= 0) {
-        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
-        exit;
-    }
-
-    header('Content-Type: text/xml');
-    echo '<?xml version="1.0"?>
-<post id="' . $post->id . '" url="' . esc($post->url) . '" title="' . esc($post->title) . '">
-    <links>';
-
-    foreach ($links as $link) {
-        echo '<link url="' . esc($link->url) . '" status="' . ($link->good() ? 'working' : 'broken') . '" description="' . esc($link->describe()) . '" />';
-    }
-
-    echo '</links>
-</post>';
-    exit;
-}
-
-$post_ids = load_post_ids();
-
-/*
- * The "internals" part finishes here. Now, we should display a page template.
- */
-
-?>
-<!DOCTYPE html>
-<meta charset="UTF-8">
-<title>WordPress Link Checker</title>
-<style><?php echo $stylesheet ?></style>
+</style>
 <h1>WordPress Link Checker</h1>
 <p><strong><?php t('Stats:') ?></strong> <span id="stats-all">0</span> <?php t('all') ?>, <span id="stats-working">0</span> <?php t('working') ?>, <span id="stats-broken">0</span> <?php t('broken') ?></p>
 <p><?php t('Display:') ?> <input type="button" id="see-all" class="button primary pressed" value="<?php t('All') ?>"> <input type="button" id="see-working" class="button" value="<?php t('Working') ?>"> <input type="button" class="button" id="see-broken" value="<?php t('Broken') ?>"></p>
@@ -629,29 +628,25 @@ var postIDs = [<?php echo implode(',', $post_ids) ?>],
     filterState = 'all',
     interval = 500;
 
-function showAll(className)
-{
+function showAll(className) {
     for (var key in all = document.getElementsByClassName(className)) {
         if (!isNaN(key)) {
             all[key].style.display = 'list-item';
         }
     }
 }
-function hideAll(className)
-{
+function hideAll(className) {
     for (var key in all = document.getElementsByClassName(className)) {
         if (!isNaN(key)) {
             all[key].style.display = 'none';
         }
     }
 }
-function switchButtons(newState)
-{
+function switchButtons(newState) {
     document.getElementById('see-' + filterState).className = document.getElementById('see-' + filterState).className.replace(/\s*pressed/, '');
     document.getElementById('see-' + (filterState = newState)).className += ' pressed';
 }
-function xmlHttp()
-{
+function xmlHttp() {
     var xmlhttp;
     try {
         xmlhttp = new XMLHttpRequest();
@@ -686,14 +681,12 @@ buttons.broken.onclick = function () {
     showAll('broken');
     switchButtons('broken');
 };
-function doCheckPost(i)
-{
+function doCheckPost(i) {
     setTimeout(function () {
         checkPost(postIDs[i])
     }, interval += 500);
 }
-function incrementStats(statField)
-{
+function incrementStats(statField) {
     statField.innerHTML = parseInt(statField.innerHTML) + 1;
 }
 
@@ -703,12 +696,11 @@ for (var i in postIDs) {
     }
 }
 
-function checkPost(id)
-{
+function checkPost(id) {
     var xmlhttp = xmlHttp();
     xmlhttp.onreadystatechange = function () {
         // Don't touch. Appreciate it works.
-        if (xmlhttp.readyState == 4 && xmlhttp.status == 200 && xmlhttp.responseXML) {
+        if (xmlhttp.readyState === 4 && xmlhttp.status === 200 && xmlhttp.responseXML) {
             var entry = document.createElement('article'), links;
             var post = xmlhttp.responseXML.getElementsByTagName('post')[0];
             var header = document.createElement('h2');
@@ -746,7 +738,7 @@ function checkPost(id)
 
             document.getElementById('list').appendChild(entry);
         }
-        if (id == postIDs[postIDs.length - 1]) {
+        if (id === postIDs[postIDs.length - 1]) {
             document.getElementById('loader').style.visibility = 'hidden';
         }
     }

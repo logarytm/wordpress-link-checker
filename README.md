@@ -1,5 +1,4 @@
-WordPress Link Checker
-======================
+# WordPress Link Checker
 Simple script that lets you know about the status of certain URLs occuring in your WordPress blog's posts.
 
 ## Usage

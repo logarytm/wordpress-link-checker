@@ -1,8 +1,8 @@
 <?php
 /**
- * WordPress Link Checker » Version 0.4
+ * WordLink · WordPress Link Checker - Version 1.0
  *
- * This script will check usability of URLs linked in your posts.
+ * This script will check accessibility of URLs linked in your posts.
  *
  * Usage: Put this file in your WordPress installation directory. Enter the address:
  * http://siteaddress.com/check.php. Wait until the process is finished.
@@ -14,14 +14,15 @@
  * If you have found a bug or you have an idea for an enhancement, feel free to report an issue on GitHub:
  * https://github.com/winek/wordpress-link-checker/issues/
  *
- * @package wordpress-link-checker
- * @license http://wtfpl.net/about WTFPL
- * @link    http://winek.tk				Author's website
- * @link    http://github.com/winek/wordpress-link-checker GitHub
- * @version 0.4
+ * @package  WordLink
+ * @author   Olgierd Grzyb
+ * @license  http://wtfpl.net/about WTFPL
+ * @link     http://winek.me/
+ * @link     http://github.com/winek/wordlink
+ * @version  1.0
  */
 
-namespace Winek\LinkChecker;
+namespace Winek\WordLink;
 
 define('REGEX_URL', '#\bhttps?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@\#/%=~_|]#i');
 define('REGEX_IS_URL', '#^https?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|]$#i');
@@ -59,6 +60,74 @@ function check_links($text)
     }
 
     return $results;
+}
+
+/**
+ * Executes the cURL request and follows open_basedir if needed 
+ * 
+ * @param  unknown $ch
+ * @param  int     $max Maximum number of redirections
+ * @return boolean|string
+ */
+function curl_exec_follow($ch, &$max = null)
+{
+    $mr = $max === null ? 5 : intval($max);
+
+    if (ini_get('open_basedir') == '' && ini_get('safe_mode') == 'Off') {
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $mr > 0);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, $mr);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    } else {
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+
+        if ($mr > 0) {
+            $original_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            $newurl = $original_url;
+
+            $rch = curl_copy_handle($ch);
+
+            curl_setopt($rch, CURLOPT_HEADER, true);
+            curl_setopt($rch, CURLOPT_NOBODY, true);
+            curl_setopt($rch, CURLOPT_FORBID_REUSE, false);
+            do {
+                curl_setopt($rch, CURLOPT_URL, $newurl);
+                $header = curl_exec($rch);
+                
+                if (curl_errno($rch)) {
+                    $code = 0;
+                } else {
+                    $code = curl_getinfo($rch, CURLINFO_HTTP_CODE);
+                    if ($code == 301 || $code == 302) {
+                        preg_match('/Location:(.*?)\n/', $header, $matches);
+                        $newurl = trim(array_pop($matches));
+
+                        // if no scheme is present then the new url is a
+                        // relative path and thus needs some extra care
+                        if (!preg_match("/^https?:/i", $newurl)) {
+                            $newurl = $original_url . $newurl;
+                        }
+                    } else {
+                        $code = 0;
+                    }
+                }
+            } while ($code && --$mr);
+
+            curl_close($rch);
+
+            if (!$mr) {
+                if ($max === null)
+                trigger_error('Too many redirects.', E_USER_WARNING);
+                else
+                $max = 0;
+
+                return false;
+            }
+            curl_setopt($ch, CURLOPT_URL, $newurl);
+        }
+    }
+
+    return curl_exec($ch);
 }
 
 /**
@@ -110,39 +179,50 @@ function h($string)
 /**
  * Detects the client language.
  * Stolen from somewhere on the Internet.
- * @param  string sDefault default language name
- * @param  array  languages
+ *
+ * @param  string $default   Default language.
+ * @param  array  $available Available languages.
+ * @param  string $accept    Accept-Language header value.
  * @return string
  */
-function get_language($sDefault = 'en', $ihSystemLang = array())
+function get_language($default, array $available = array())
 {
-    $sLangs = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
     preg_match_all(
-    '!([a-zA-Z]+)(?:-[a-zA-Z]+)?(?: *; *q *= *([01]\.[0-9]+))?!',
-    $sLangs, $shFound);
+            '!([a-zA-Z]+)(?:-[a-zA-Z]+)?(?: *; *q *= *([01](?:\.[0-9]+)?))?!',
+            $_SERVER['HTTP_ACCEPT_LANGUAGE'],
+            $found);
 
-    foreach ($shFound[1] as $i => $sLang) {
-        $iW = (float) $shFound[2][$i];
-        $ihUserLang[$sLang] = $iW > 0 ? $iW : 1;
+    foreach ($found[1] as $i => $lang) {
+        $weight = (float) $found[2][$i];
+        $accepted[$lang] = $weight > 0 ? $weight : 1;
     }
-    $iChoiceWeight = 0;
-    $sChoiceLang = '';
-    foreach ($ihSystemLang as $sLang => $iW) {
-        if (isset($ihUserLang[$sLang])) {
-            $iTmpChoice = $iW * $ihUserLang[$sLang];
 
-            if ($iTmpChoice > $iChoiceWeight and $iTmpChoice > 0) {
-                $iChoiceWeight = $iTmpChoice;
-                $sChoiceLang = $sLang;
+    $choiceWeight = 0;
+    $choice = $default;
+    $languages = array_flip($available);
+    $i = 1;
+    $baseWeight = 1;
+
+    foreach ($languages as &$weight) {
+        $weight = $baseWeight;
+    }
+
+    foreach ($languages as $lang => $weight) {
+        if (isset($accepted[$lang])) {
+            $tmpChoice = $weight * $accepted[$lang];
+
+            if ($tmpChoice > $choiceWeight and $tmpChoice > 0) {
+                $choiceWeight = $tmpChoice;
+                $choice = $lang;
             }
         }
     }
 
-    return $sChoiceLang != '' ? $sChoiceLang : $sDefault;
+    return $choice;
 }
 
 /**
- * Translates a phrase and sends to stdout.
+ * Translates a phrase and sends to stdout/server response.
  * Accepts printf-like additional parameters.
  *
  *     t('New %i messages', $numberOfMessages)
@@ -151,16 +231,17 @@ function get_language($sDefault = 'en', $ihSystemLang = array())
  */
 function t($phrase)
 {
-    echo htmlspecialchars(call_user_func_array('Winek\LinkChecker\translate', func_get_args()));
+    echo htmlspecialchars(call_user_func_array('Winek\WordLink\translate', func_get_args()));
 }
 
 /**
  * Translates a phrase.
  * May be called with more than one parameter - additional parameters
  * will be passed to sprintf call.
- * @param string $phrase
- *
+ * 
  *     echo translate('Fatal error: %s', $error);
+ * 
+ * @param string $phrase
  */
 function translate($phrase)
 {
@@ -171,13 +252,13 @@ function translate($phrase)
         $args[0] = $translations[$lang][$args[0]];
     }
 
-    return call_user_func_array('sprintf', $args); // Yep, bad hack :3
+    return call_user_func_array('sprintf', $args);
 }
 
 /**
  * Checks the status for a given link.
  *
- * @param  string     $url
+ * @param  string $url
  * @return Link
  */
 function check_status($url)
@@ -193,17 +274,13 @@ function check_status($url)
 
     $curl = curl_init();
     curl_setopt_array($curl, array(
-        CURLOPT_URL	    => $url,
+        CURLOPT_URL	           => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 (X11; Linux x86_64; rv:26.0) Gecko/20100101 Firefox/26.0',
     ));
 
-    if (!ini_get('open_basedir')) {
-        // cURL won't let us set this option if open_basedir is set
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-    }
-
-    $ret = curl_exec($curl);
+    $ret = curl_exec_follow($curl);
 
     if (!$ret) {
         // Failed, returning status as is
@@ -384,7 +461,7 @@ class Link
     );
 }
 
-$lang = get_language('en', array('en' => 1, 'pl' => 0.8));
+$lang = get_language('en', array('en', 'pl'));
 @set_time_limit(0);
 
 if (file_exists('wp-config.php')) {
@@ -564,7 +641,7 @@ input[type=submit]:focus {
     -moz-border-radius: 2px;
     -webkit-border-radius: 2px;
     padding: 5px 8px;
-    font-family: \'Liberation Sans\', Arial, Helvetica, sans-serif;
+    font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
     color: #3a3a3a;
     box-shadow: 0 1px 0 #eee, 0 1px 1px #f9f9f9 inset;
 }
@@ -628,25 +705,29 @@ var postIDs = [<?php echo implode(',', $post_ids) ?>],
     filterState = 'all',
     interval = 500;
 
-function showAll(className) {
+function showAll(className)
+{
     for (var key in all = document.getElementsByClassName(className)) {
         if (!isNaN(key)) {
             all[key].style.display = 'list-item';
         }
     }
 }
-function hideAll(className) {
+function hideAll(className)
+{
     for (var key in all = document.getElementsByClassName(className)) {
         if (!isNaN(key)) {
             all[key].style.display = 'none';
         }
     }
 }
-function switchButtons(newState) {
+function switchButtons(newState)
+{
     document.getElementById('see-' + filterState).className = document.getElementById('see-' + filterState).className.replace(/\s*pressed/, '');
     document.getElementById('see-' + (filterState = newState)).className += ' pressed';
 }
-function xmlHttp() {
+function xmlHttp()
+{
     var xmlhttp;
     try {
         xmlhttp = new XMLHttpRequest();
@@ -681,12 +762,14 @@ buttons.broken.onclick = function () {
     showAll('broken');
     switchButtons('broken');
 };
-function doCheckPost(i) {
+function doCheckPost(i)
+{
     setTimeout(function () {
         checkPost(postIDs[i])
     }, interval += 500);
 }
-function incrementStats(statField) {
+function incrementStats(statField)
+{
     statField.innerHTML = parseInt(statField.innerHTML) + 1;
 }
 
@@ -696,7 +779,8 @@ for (var i in postIDs) {
     }
 }
 
-function checkPost(id) {
+function checkPost(id)
+{
     var xmlhttp = xmlHttp();
     xmlhttp.onreadystatechange = function () {
         // Don't touch. Appreciate it works.

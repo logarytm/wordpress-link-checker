@@ -1,6 +1,8 @@
-# WordPress Link Checker
-Simple script that lets you know about the status of certain URLs occuring in your WordPress blog's posts.
+# WordLink
+
+Informs you about the status of links occuring in your WordPress blog posts.
 
 ## Usage
-Download the `check.php` file and put it into the directory of your WordPress installation. Open the script in your web browser.
-It should detect your database configuration automagically.
+Download the `check.php` file and put it into the directory of your WordPress installation. Open the script in your web browser:
+`http://example.com/check.php`. It will detect your database configuration automagically. After a few minutes you will see a
+listing of all your links.

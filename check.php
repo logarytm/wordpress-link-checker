@@ -483,7 +483,7 @@ if (!empty($_POST['getstatus']) && ctype_digit($_POST['getstatus'])) {
 
     try {
         $post = load_post($_POST['getstatus']);
-    } catch (InvalidArgumentException $e) {
+    } catch (\InvalidArgumentException $e) {
         header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
         exit;
     }

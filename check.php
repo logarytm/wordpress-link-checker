@@ -7,10 +7,6 @@
  * Usage: Put this file in your WordPress installation directory. Enter the address:
  * http://siteaddress.com/check.php. Wait until the process is finished.
  *
- * If open_basedir is enabled, then the script may have some troubles to handle
- * redirection. This is caused by unavailabity of CURLOPT_FOLLOWLOCATION in these
- * cases. A workaround is going to be implemented soon.
- *
  * If you have found a bug or you have an idea for an enhancement, feel free to report an issue on GitHub:
  * https://github.com/winek/wordpress-link-checker/issues/
  *

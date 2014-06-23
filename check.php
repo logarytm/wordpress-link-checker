@@ -14,7 +14,7 @@
  * @author   Olgierd Grzyb
  * @license  http://wtfpl.net/about WTFPL
  * @link     http://winek.me/
- * @link     http://github.com/winek/wordlink
+ * @link     http://github.com/winek/wordpress-link-checker
  * @version  1.0
  */
 

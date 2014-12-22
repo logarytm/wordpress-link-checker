@@ -1,4 +1,4 @@
-# WordLink
+# WordPress Link Checker
 
 Informs you about the status of links occuring in your WordPress blog posts.
 

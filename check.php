@@ -10,12 +10,11 @@
  * If you have found a bug or you have an idea for an enhancement, feel free to report an issue on GitHub:
  * https://github.com/winek/wordpress-link-checker/issues/
  *
- * @package  WordPress Link Checker
- * @author   Olgierd Grzyb
+ * @author   Olgierd Grzyb <olgierd.grzyb@gmail.com>
  * @license  http://wtfpl.net/about WTFPL
  * @link     http://winek.me/
  * @link     http://github.com/winek/wordpress-link-checker
- * @version  1.0
+ * @version  1.1
  */
 
 namespace Winek\WordPress\LinkChecker;
@@ -42,7 +41,7 @@ function find_links($text)
  * Checks each link in the given URL array.
  *
  * @param  string       $text post body
- * @return LinkStatus[]
+ * @return Link[]
  */
 function check_links($text)
 {
@@ -493,16 +492,16 @@ $post_ids = load_post_ids();
 <title>WordPress Link Checker</title>
 <style>
 html {
-    color: #555;
     background: #f7f7f7;
+    color: #555;
 }
 body {
-    font: .9em 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: #fff;
-    margin: 0;
-    line-height: 1.6em;
-    padding: 35px;
     box-shadow: 0 2px 1px #eee;
+    font: .9em 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    line-height: 1.6em;
+    margin: 0;
+    padding: 35px;
 }
 a {
     color: #28c;

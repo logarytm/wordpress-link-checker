@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress Link Checker - Version 1.0
+ * WordPress Link Checker - Version 1.1
  *
  * This script will check accessibility of URLs linked in your posts.
  *
@@ -15,7 +15,7 @@
  * @license  http://wtfpl.net/about WTFPL
  * @link     http://winek.me/
  * @link     http://github.com/winek/wordpress-link-checker
- * @version  1.0
+ * @version  1.1
  */
 
 namespace Winek\WordPress\LinkChecker;

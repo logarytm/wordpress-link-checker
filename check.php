@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress Link Checker - Version 1.0
+ * WordPress Link Checker - Version 1.1
  *
  * This script will check accessibility of URLs linked in your posts.
  *

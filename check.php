@@ -107,10 +107,12 @@ function curl_exec_follow($ch, &$max = null)
             curl_close($rch);
 
             if (!$mr) {
-                if ($max === null)
-                trigger_error('Too many redirects.', E_USER_WARNING);
-                else
-                $max = 0;
+                if ($max === null) {
+                    trigger_error('Too many redirects.', E_USER_WARNING);
+                }
+                else {
+                    $max = 0;
+                }
 
                 return false;
             }

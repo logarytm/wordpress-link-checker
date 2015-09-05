@@ -31,7 +31,9 @@ define('REGEX_IS_URL', '#^https?://[-A-Z0-9+&@\#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|
 function find_links($text)
 {
     if (preg_match_all(REGEX_URL, $text, $m, PREG_SET_ORDER)) {
-        return array_unique(array_map(create_function('$m', 'return $m[0];'), $m));
+        return array_unique(array_map(function ($m) {
+            return $m[0];
+        }, $m));
     }
 
     return array();

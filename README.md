@@ -1,5 +1,7 @@
 # WordPress Link Checker
 
+![stability-unstable](https://img.shields.io/badge/stability-unstable-yellow.svg)
+
 Informs you about the status of links occuring in your WordPress blog posts.
 
 ## Usage

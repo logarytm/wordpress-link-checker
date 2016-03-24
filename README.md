@@ -1,6 +1,6 @@
 # WordPress Link Checker
 
-https://img.shields.io/maintenance/yes/2015.svg
+[![Maintenance](https://img.shields.io/maintenance/yes/2015.svg)]()
 
 Informs you about the status of links occuring in your WordPress blog posts.
 
